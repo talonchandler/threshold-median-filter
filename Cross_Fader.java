@@ -6,6 +6,7 @@ import ij.plugin.filter.PlugInFilterRunner;
 import ij.gui.DialogListener;
 import ij.gui.GenericDialog;
 import java.awt.*;
+import java.util.*;
 
 /**Cross_Fader 1.0 Michael Schmid 2014-04-22
  * Takes a two-slice stack and copies part of the second slice into the current one.
@@ -23,11 +24,12 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
     private ImagePlus imp;
     private ImagePlus impOriginal;
 
-    private ImageProcessor ip;
-    private ImageProcessor ip2;
 
-    private ImageStack stack;
-    private ImageStack stack2;
+    private ImageProcessor ipPrevSlice;
+    private ImageProcessor ipThisSlice;
+    private ImageProcessor ipNextSlice;
+    private ImageProcessor ipNew;
+
     private ImageStack is;
     private ImageStack is2;
 
@@ -50,7 +52,6 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
         gd.addSlider("Threshold", 0.0, 255.0, 0.0);
         gd.addPreviewCheckbox(pfr);
         gd.addDialogListener(this);
-	IJ.log("TESTER\n");
         gd.showDialog();           // user input (or reading from macro) happens here
         if (gd.wasCanceled()) {    // dialog cancelled?
 	    this.imp = thresholdMedian(imp, 0); // restore original image
@@ -72,28 +73,90 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
 	is = impOriginal.getStack();
 	is2 = imp.getStack();
 
+	// Testing
+	double [] array2 = {1,3,5,6};
+	IJ.log("AVG: "+mean(array2));
+	IJ.log("MED: "+median(array2));
+
 	// Thresholding
 	int nslices = is2.getSize();
 	IJ.log("THRESHOLD:"+threshold+"\n");	    
-	for (int z=0; z<nslices; z++) {
-	    ImageProcessor ip = is.getProcessor(z+1);	    
-	    ImageProcessor ip2 = is2.getProcessor(z+1);
-	    int xdim = ip2.getWidth();
-	    int ydim = ip2.getHeight();
+	for (int z=1; z<=nslices; z++) {
+	    
+	    try{ipPrevSlice = is.getProcessor(z-1);}catch(Exception e){ipPrevSlice = is.getProcessor(z+1);}	    	    
+	    ipThisSlice = is.getProcessor(z);
+	    try{ipNextSlice = is.getProcessor(z+1);}catch(Exception e){ipPrevSlice = is.getProcessor(z-1);}	    	    
+
+	    ipNew = is2.getProcessor(z);
+	    int xdim = ipNew.getWidth();
+	    int ydim = ipNew.getHeight();
 	    for (int x=0; x<xdim; x++) {
 		for (int y=0; y<ydim; y++) {
-		    if(ip.getPixel(x,y) < threshold) {
-			ip2.putPixel(x,y,0);
+		    double neighbors[] = new double[26];		    
+		    try{neighbors[0] = ipPrevSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y+1);}
+		    try{neighbors[1] = ipPrevSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x,y+1);}
+		    try{neighbors[2] = ipPrevSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y+1);}
+		    try{neighbors[3] = ipPrevSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y);}
+		    neighbors[4] = ipPrevSlice.getPixel(x,y);
+		    try{neighbors[5] = ipPrevSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y);}
+		    try{neighbors[6] = ipPrevSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y-1);}
+		    try{neighbors[7] = ipPrevSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x,y-1);}
+		    try{neighbors[8] = ipPrevSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y-1);}
+
+		    try{neighbors[9] = ipThisSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y+1);}
+		    try{neighbors[10] = ipThisSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x,y+1);}
+		    try{neighbors[11] = ipThisSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y+1);}
+		    try{neighbors[12] = ipThisSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y);}
+		    //neighbors[13] = ipThisSlice.getPixel(x,y); 
+		    try{neighbors[14] = ipThisSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y);}
+		    try{neighbors[15] = ipThisSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y-1);}
+		    try{neighbors[16] = ipThisSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x,y-1);}
+		    try{neighbors[17] = ipThisSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y-1);}
+
+		    try{neighbors[18] = ipNextSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y+1);}
+		    try{neighbors[19] = ipNextSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x,y+1);}
+		    try{neighbors[20] = ipNextSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y+1);}
+		    try{neighbors[21] = ipNextSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y);}
+		    neighbors[22] = ipNextSlice.getPixel(x,y);
+		    try{neighbors[23] = ipNextSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y);}
+		    try{neighbors[24] = ipNextSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y-1);}
+		    try{neighbors[25] = ipNextSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x,y-1);}
+		    try{neighbors[26] = ipNextSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y-1);}
+
+		    if(mean(neighbors) < threshold) {
+			int i = (int) median(neighbors);
+			ipNew.putPixel(x,y,i);
 		    }
 		    else {
-			ip2.putPixel(x,y,ip.getPixel(x,y));
+			ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
 		    }
+		    // if(ipThisSlice.getPixel(x,y) < threshold) {
+		    // 	ipNew.putPixel(x,y,0);
+		    // }
+		    // else {
+		    // 	ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
+		    // }
 		}
 	    }
 
 
 	}
 	return imp;
+    }
+    
+    private double mean(double array[]){
+	double sum = 0;
+	for(int i = 0; i < array.length; i++) {
+	    sum += array[i];
+	}
+	return sum/array.length;
+    }
+    
+    private double median(double array[]){
+	Arrays.sort(array);
+	int len = array.length;
+	if(len%2==0)return((array[(len/2)-1]+array[len/2])/2);
+	else return array[((len-1)/2)];
     }
 
     public void setNPasses (int nPasses) {}
