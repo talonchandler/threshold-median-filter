@@ -14,16 +14,14 @@ import java.util.*;
 
 public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
     private static int FLAGS =      //bitwise or of the following flags:
-            STACK_REQUIRED |
 	    DOES_ALL |              //this plugin processes 8-bit, 16-bit, 32-bit gray & 24-bit/pxl RGB
             KEEP_PREVIEW;           //When using preview, the preview image can be kept as a result
-
+    
     private double threshold;      
     private ImageProcessor otherSlice;  //Image data of the other slice
 
     private ImagePlus imp;
     private ImagePlus impOriginal;
-
 
     private ImageProcessor ipPrevSlice;
     private ImageProcessor ipThisSlice;
@@ -43,11 +41,6 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
     }
 
     public int showDialog (ImagePlus imp, String command, PlugInFilterRunner pfr) {
-        if (imp.getNSlices() < 2) {
-            IJ.error("stack with more than one slice required");
-            return DONE;
-        }
-        int currentSliceN = imp.getSlice();
         GenericDialog gd = new GenericDialog(command+"...");
         gd.addSlider("Threshold", 0.0, 255.0, 0.0);
         gd.addPreviewCheckbox(pfr);
@@ -73,56 +66,52 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
 	is = impOriginal.getStack();
 	is2 = imp.getStack();
 
-	// Testing
-	double [] array2 = {1,3,5,6};
-	IJ.log("AVG: "+mean(array2));
-	IJ.log("MED: "+median(array2));
-
 	// Thresholding
 	int nslices = is2.getSize();
-	IJ.log("THRESHOLD:"+threshold+"\n");	    
 	for (int z=1; z<=nslices; z++) {
+	    ipThisSlice = is.getProcessor(z);		
+	    if (nslices > 1) {
+		try{ipPrevSlice = is.getProcessor(z-1);}catch(Exception e){ipPrevSlice = is.getProcessor(z+1);}	    	    
+		try{ipNextSlice = is.getProcessor(z+1);}catch(Exception e){ipPrevSlice = is.getProcessor(z-1);}	    	    
+	    }
 	    
-	    try{ipPrevSlice = is.getProcessor(z-1);}catch(Exception e){ipPrevSlice = is.getProcessor(z+1);}	    	    
-	    ipThisSlice = is.getProcessor(z);
-	    try{ipNextSlice = is.getProcessor(z+1);}catch(Exception e){ipPrevSlice = is.getProcessor(z-1);}	    	    
-
 	    ipNew = is2.getProcessor(z);
 	    int xdim = ipNew.getWidth();
 	    int ydim = ipNew.getHeight();
 	    for (int x=0; x<xdim; x++) {
 		for (int y=0; y<ydim; y++) {
-		    double neighbors[] = new double[26];		    
-		    try{neighbors[0] = ipPrevSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y+1);}
-		    try{neighbors[1] = ipPrevSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x,y+1);}
-		    try{neighbors[2] = ipPrevSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y+1);}
-		    try{neighbors[3] = ipPrevSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y);}
-		    neighbors[4] = ipPrevSlice.getPixel(x,y);
-		    try{neighbors[5] = ipPrevSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y);}
-		    try{neighbors[6] = ipPrevSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x+1,y-1);}
-		    try{neighbors[7] = ipPrevSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x,y-1);}
-		    try{neighbors[8] = ipPrevSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipPrevSlice.getPixel(x-1,y-1);}
+ 		    ArrayList<Double> neighbors = new ArrayList<Double>();
 
-		    try{neighbors[9] = ipThisSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y+1);}
-		    try{neighbors[10] = ipThisSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x,y+1);}
-		    try{neighbors[11] = ipThisSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y+1);}
-		    try{neighbors[12] = ipThisSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y);}
-		    //neighbors[13] = ipThisSlice.getPixel(x,y); 
-		    try{neighbors[14] = ipThisSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y);}
-		    try{neighbors[15] = ipThisSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x+1,y-1);}
-		    try{neighbors[16] = ipThisSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x,y-1);}
-		    try{neighbors[17] = ipThisSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipThisSlice.getPixel(x-1,y-1);}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x+1,y+1));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x,y+1));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x-1,y+1));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x+1,y));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x-1,y));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x+1,y-1));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x,y-1));}
+		    try{neighbors.add( (double) ipThisSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add( (double) ipThisSlice.getPixel(x-1,y-1));}
 
-		    try{neighbors[18] = ipNextSlice.getPixel(x-1,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y+1);}
-		    try{neighbors[19] = ipNextSlice.getPixel(x,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x,y+1);}
-		    try{neighbors[20] = ipNextSlice.getPixel(x+1,y-1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y+1);}
-		    try{neighbors[21] = ipNextSlice.getPixel(x-1,y);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y);}
-		    neighbors[22] = ipNextSlice.getPixel(x,y);
-		    try{neighbors[23] = ipNextSlice.getPixel(x+1,y);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y);}
-		    try{neighbors[24] = ipNextSlice.getPixel(x-1,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x+1,y-1);}
-		    try{neighbors[25] = ipNextSlice.getPixel(x,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x,y-1);}
-		    try{neighbors[26] = ipNextSlice.getPixel(x+1,y+1);}catch(Exception e){neighbors[0]=ipNextSlice.getPixel(x-1,y-1);}
-
+		    if (nslices > 1) {
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x+1,y+1));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x,y+1));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x-1,y+1));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x+1,y));}
+			neighbors.add( (double) ipPrevSlice.getPixel(x,y));
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x-1,y));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x+1,y-1));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x,y-1));}
+			try{neighbors.add( (double) ipPrevSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add( (double) ipPrevSlice.getPixel(x-1,y-1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x+1,y+1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x,y+1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x-1,y+1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x+1,y));}
+			neighbors.add( (double) ipNextSlice.getPixel(x,y));
+			try{neighbors.add( (double) ipNextSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x-1,y));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x+1,y-1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x,y-1));}
+			try{neighbors.add( (double) ipNextSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x-1,y-1));}
+		    }
+		    
 		    if(mean(neighbors) < threshold) {
 			int i = (int) median(neighbors);
 			ipNew.putPixel(x,y,i);
@@ -130,33 +119,25 @@ public class Cross_Fader implements ExtendedPlugInFilter, DialogListener {
 		    else {
 			ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
 		    }
-		    // if(ipThisSlice.getPixel(x,y) < threshold) {
-		    // 	ipNew.putPixel(x,y,0);
-		    // }
-		    // else {
-		    // 	ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
-		    // }
 		}
 	    }
-
-
 	}
 	return imp;
     }
     
-    private double mean(double array[]){
+    private double mean(ArrayList<Double> array){
 	double sum = 0;
-	for(int i = 0; i < array.length; i++) {
-	    sum += array[i];
+	for(int i = 0; i < array.size(); i++) {
+	    sum += array.get(i);
 	}
-	return sum/array.length;
+	return sum/array.size();
     }
     
-    private double median(double array[]){
-	Arrays.sort(array);
-	int len = array.length;
-	if(len%2==0)return((array[(len/2)-1]+array[len/2])/2);
-	else return array[((len-1)/2)];
+    private double median(ArrayList<Double> array){
+	Collections.sort(array);
+	int len = array.size();
+	if(len%2==0)return((array.get((len/2)-1)+array.get(len/2))/2);
+	else return array.get(((len-1)/2));
     }
 
     public void setNPasses (int nPasses) {}
