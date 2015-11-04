@@ -16,13 +16,12 @@ import java.util.*;
  * TODO
  * - Allow 2D images
  * - Allow non 8-bit images
- * - Crashes when user doesn't have an image open
  */
 
 public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogListener {
     private static int FLAGS =      //bitwise or of the following flags:
-	    DOES_ALL |              //this plugin processes 8-bit, 16-bit, 32-bit gray & 24-bit/pxl RGB
-            KEEP_PREVIEW;           //When using preview, the preview image can be kept as a result
+	DOES_ALL |              //this plugin processes 8-bit, 16-bit, 32-bit gray & 24-bit/pxl RGB
+	KEEP_PREVIEW;           //When using preview, the preview image can be kept as a result
     
     private double threshold;      
     private ImageProcessor otherSlice;  //Image data of the other slice
@@ -42,7 +41,9 @@ public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogList
     private boolean include = false;
     
     public int setup (String arg, ImagePlus imp) {
-	impOriginal = new Duplicator().run(imp); // deep copy of original image
+	
+	try{impOriginal = new Duplicator().run(imp);}
+	catch(Exception e){IJ.error("Please open an image."); return DONE;}
        	this.imp = imp;
         return FLAGS;
     }
