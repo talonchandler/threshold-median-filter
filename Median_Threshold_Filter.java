@@ -16,6 +16,7 @@ import java.util.*;
  * TODO
  * - Allow 2D images
  * - Allow non 8-bit images
+ * - Crashes when user doesn't have an image open
  */
 
 public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogListener {
