@@ -19,7 +19,7 @@ import java.util.*;
  */
 
 public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogListener {
-    private static int FLAGS =      //bitwise or of the following flags:
+    private static int FLAGS =  //bitwise or of the following flags:
 	DOES_ALL |              //this plugin processes 8-bit, 16-bit, 32-bit gray & 24-bit/pxl RGB
 	KEEP_PREVIEW;           //When using preview, the preview image can be kept as a result
     
@@ -55,7 +55,7 @@ public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogList
         gd.addDialogListener(this);
         gd.showDialog();           // user input (or reading from macro) happens here
         if (gd.wasCanceled()) {    // dialog cancelled?
-	    this.imp = thresholdMedian(imp, 0); // restore original image
+	    this.imp = thresholdMedian(imp, 0); // reset image
             return DONE;
 	}
         return FLAGS;              // makes the user process the slice
@@ -67,7 +67,7 @@ public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogList
     }
 
     public void run (ImageProcessor ip) {
-        imp = thresholdMedian(imp, threshold);
+	imp = thresholdMedian(imp, threshold);
     }
 
     private ImagePlus thresholdMedian (ImagePlus imp, double threshold) {
@@ -82,8 +82,9 @@ public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogList
 		try{ipPrevSlice = is.getProcessor(z-1);}catch(Exception e){ipPrevSlice = is.getProcessor(z+1);}	    	    
 		try{ipNextSlice = is.getProcessor(z+1);}catch(Exception e){ipPrevSlice = is.getProcessor(z-1);}	    	    
 	    }
-	    
+
 	    ipNew = is2.getProcessor(z);
+
 	    int xdim = ipNew.getWidth();
 	    int ydim = ipNew.getHeight();
 	    for (int x=0; x<xdim; x++) {
@@ -119,7 +120,7 @@ public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogList
 			try{neighbors.add( (double) ipNextSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x,y-1));}
 			try{neighbors.add( (double) ipNextSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add( (double) ipNextSlice.getPixel(x-1,y-1));}
 		    }
-		    
+
 		    if(mean(neighbors) < threshold) {
 			int i = (int) median(neighbors);
 			ipNew.putPixel(x,y,i);
