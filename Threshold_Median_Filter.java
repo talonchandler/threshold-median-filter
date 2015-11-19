@@ -8,14 +8,16 @@ import ij.gui.GenericDialog;
 import java.awt.*;
 import java.util.*;
 
-/** Median_Threshold_Filter - 1.1 - Talon Chandler - Takes a 2D or 3D image and
- * replaces pixels that have a neighborhood average less than the slider
- * threshold with the neighborhood median. The neighborhood of a pixel consists
- * of the 8 adjacent pixels in the 2D case and the 26 adjacent pixels in the 3D
- * case.
+/** Threshold_Median_Filter - 1.1 - Talon Chandler - Takes a 2D or 3D image or
+ * hyperstack and replaces pixels that have a neighborhood average less than the
+ * slider threshold with the neighborhood median. The neighborhood of a pixel
+ * consists of the 8 adjacent pixels in the 2D case and the 26 adjacent pixels
+ * in the 3D case.
  */
 
-public class Median_Threshold_Filter implements ExtendedPlugInFilter, DialogListener {
+// TODO: Efficient previewing. Only filter after pressing ok. 
+
+public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogListener {
 
     private static int FLAGS =  DOES_8G | DOES_16 | DOES_32 | KEEP_PREVIEW;           
 
