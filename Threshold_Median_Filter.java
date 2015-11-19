@@ -15,8 +15,6 @@ import java.util.*;
  * in the 3D case.
  */
 
-// TODO: Efficient previewing. Only filter after pressing ok. 
-
 public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogListener {
 
     private static int FLAGS =  DOES_8G | DOES_16 | DOES_32 | KEEP_PREVIEW;           
@@ -45,8 +43,11 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
         gd.addDialogListener(this);
         gd.showDialog();           // user input (or reading from macro) happens here
         if (gd.wasCanceled()) {    // dialog cancelled?
-	    this.imp = thresholdMedian(imp, 0); // reset image
+	    this.imp = thresholdMedian(imp, 0, false); // reset image
             return DONE;
+	}
+	if (gd.wasOKed()) {
+	    this.imp = thresholdMedian(imp, threshold, true);
 	}
         return FLAGS;              // makes the user process the slice
     }
@@ -57,15 +58,29 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
     }
 
     public void run (ImageProcessor ip) {
-	imp = thresholdMedian(imp, threshold);
+	imp = thresholdMedian(imp, threshold, false);
     }
 
-    private ImagePlus thresholdMedian (ImagePlus imp, double threshold) {
+    private ImagePlus thresholdMedian (ImagePlus imp, double threshold, Boolean filterAllSlices) {
 	is = impOriginal.getStack();
 	is2 = imp.getStack();
 
-	int nslices = is2.getSize();
-	for (int z=1; z<=nslices; z++) {
+	int zmin = 0;
+	int nslices = 0;
+	
+	// Filter all slices
+	if (filterAllSlices) {
+	    zmin = 1;
+	    nslices = is2.getSize();
+	}
+	// Only filter the current slice
+	else { 
+	    zmin = imp.getCurrentSlice();
+	    nslices = zmin + 1;
+	}
+
+	for (int z=zmin; z<=nslices; z++) {
+	    IJ.showProgress((double)z/nslices);
 	    // Find neighborhood slices
 	    ipThisSlice = is.getProcessor(z);		
 	    if (nslices > 1) {
