@@ -48,6 +48,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	}
 	if (gd.wasOKed()) {
 	    this.imp = thresholdMedian(imp, threshold, true);
+	    
 	}
         return FLAGS;              // makes the user process the slice
     }
@@ -65,86 +66,109 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	is = impOriginal.getStack();
 	is2 = imp.getStack();
 
-	int zmin = 0;
-	int nslices = 0;
-	
+	int c_min = 0;
+	int z_min = 0;
+	int t_min = 0;
+	int c_max = 0;
+	int z_max = 0;
+	int t_max = 0;
+
 	// Filter all slices
 	if (filterAllSlices) {
-	    zmin = 1;
-	    nslices = is2.getSize();
+	    IJ.log("TEST");
+	    c_min = 1;
+	    z_min = 1;
+	    t_min = 1;		    
+	    c_max = imp.getNChannels();
+	    z_max = imp.getNSlices();
+	    t_max = imp.getNFrames();
 	}
 	// Only filter the current slice
 	else { 
-	    zmin = imp.getCurrentSlice();
-	    nslices = zmin + 1;
+	    z_min = imp.getZ();
+	    c_min = imp.getC();
+	    t_min = imp.getT();
+	    z_max = z_min;
+	    c_max = c_min;
+	    t_max = t_min;	    
 	}
 
-	for (int z=zmin; z<=nslices; z++) {
-	    IJ.showProgress((double)z/nslices);
-	    // Find neighborhood slices
-	    ipThisSlice = is.getProcessor(z);		
-	    if (nslices > 1) {
-		try{ipPrevSlice = is.getProcessor(z-1);}catch(Exception e){ipPrevSlice = is.getProcessor(z+1);}	    	    
-		try{ipNextSlice = is.getProcessor(z+1);}catch(Exception e){ipPrevSlice = is.getProcessor(z-1);}	    	    
-	    }
+	int slice_index = 0;
+	for (int c=c_min; c<=c_max; c++) {
+	    for (int z=z_min; z<=z_max; z++) {
+		for (int t=t_min; t<=t_max; t++) {
 
-	    // Find neighborhood pixels
-	    ipNew = is2.getProcessor(z);
-	    int xdim = ipNew.getWidth();
-	    int ydim = ipNew.getHeight();
-	    for (int x=0; x<xdim; x++) {
-		for (int y=0; y<ydim; y++) {
- 		    ArrayList<Integer> neighbors = new ArrayList<Integer>();
+		    // Update progress bar
+		    IJ.showProgress((double)slice_index/imp.getImageStackSize());
+		    slice_index += 1;
 
-		    try{neighbors.add(  ipThisSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y+1));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x,y+1));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y+1));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y-1));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x,y-1));}
-		    try{neighbors.add(  ipThisSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y-1));}
-
-		    if (nslices > 1) {
-			try{neighbors.add(  ipPrevSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y+1));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x,y+1));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y+1));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y));}
-			neighbors.add(  ipPrevSlice.getPixel(x,y));
-			try{neighbors.add(  ipPrevSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y-1));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x,y-1));}
-			try{neighbors.add(  ipPrevSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y-1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y+1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x,y+1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y+1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y));}
-			neighbors.add(  ipNextSlice.getPixel(x,y));
-			try{neighbors.add(  ipNextSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y));}
-			try{neighbors.add(  ipNextSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y-1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x,y-1));}
-			try{neighbors.add(  ipNextSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y-1));}
+		    // Find neighborhood slices
+		    ipThisSlice = is.getProcessor(imp.getStackIndex(c, z, t));		
+		    if (z_max > 1) {
+			try{ipPrevSlice = is.getProcessor(imp.getStackIndex(c, z-1, t));}catch(Exception e){ipPrevSlice = is.getProcessor(imp.getStackIndex(c, z+1, t));}	    	    
+			try{ipNextSlice = is.getProcessor(imp.getStackIndex(c, z+1, t));}catch(Exception e){ipPrevSlice = is.getProcessor(imp.getStackIndex(c, z-1, t));}	    	    
 		    }
 
-		    // Convert to float
-		    ArrayList<Float> f_neighbors = new ArrayList<Float>();
-		    for(int i = 0; i < neighbors.size(); i++) {
-			int old = neighbors.get(i);
-			if (ipThisSlice instanceof FloatProcessor) 
-			    f_neighbors.add(Float.intBitsToFloat(old));
-			else
-			    f_neighbors.add((float) old);
-		    }
+		    // Find neighborhood pixels
+		    ipNew = is2.getProcessor(imp.getStackIndex(c, z, t));
+		    int xdim = ipNew.getWidth();
+		    int ydim = ipNew.getHeight();
+		    for (int x=0; x<xdim; x++) {
+			for (int y=0; y<ydim; y++) {
+			    ArrayList<Integer> neighbors = new ArrayList<Integer>();
 
-		    // Main filter. If neighborhood mean is less than threshold,
-		    // replace with the neighborhood median. Otherwise, leave 
-		    // the pixel alone. 
-		    if(mean(f_neighbors) < threshold) {
-			int i = (int) median(f_neighbors);
-			ipNew.putPixel(x,y,i);
+			    try{neighbors.add(  ipThisSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y+1));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x,y+1));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y+1));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x+1,y-1));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x,y-1));}
+			    try{neighbors.add(  ipThisSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipThisSlice.getPixel(x-1,y-1));}
+
+			    if (z_max > 1) {
+				try{neighbors.add(  ipPrevSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y+1));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x,y+1));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y+1));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y));}
+				neighbors.add(  ipPrevSlice.getPixel(x,y));
+				try{neighbors.add(  ipPrevSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x+1,y-1));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x,y-1));}
+				try{neighbors.add(  ipPrevSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipPrevSlice.getPixel(x-1,y-1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x-1,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y+1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x,y+1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x+1,y-1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y+1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x-1,y));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y));}
+				neighbors.add(  ipNextSlice.getPixel(x,y));
+				try{neighbors.add(  ipNextSlice.getPixel(x+1,y));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y));}
+				try{neighbors.add(  ipNextSlice.getPixel(x-1,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x+1,y-1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x,y-1));}
+				try{neighbors.add(  ipNextSlice.getPixel(x+1,y+1));}catch(Exception e){neighbors.add(  ipNextSlice.getPixel(x-1,y-1));}
+			    }
+
+			    // Convert to float
+			    ArrayList<Float> f_neighbors = new ArrayList<Float>();
+			    for(int i = 0; i < neighbors.size(); i++) {
+				int old = neighbors.get(i);
+				if (ipThisSlice instanceof FloatProcessor) 
+				    f_neighbors.add(Float.intBitsToFloat(old));
+				else
+				    f_neighbors.add((float) old);
+			    }
+
+			    // Main filter. If neighborhood mean is less than threshold,
+			    // replace with the neighborhood median. Otherwise, leave 
+			    // the pixel alone. 
+			    if(mean(f_neighbors) < threshold) {
+				int i = (int) median(f_neighbors);
+				ipNew.putPixel(x,y,i);
+			    }
+			    else
+				ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
+			}
+
 		    }
-		    else
-			ipNew.putPixel(x,y,ipThisSlice.getPixel(x,y));
 		}
 	    }
 	}
