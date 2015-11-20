@@ -8,7 +8,7 @@ import ij.gui.GenericDialog;
 import java.awt.*;
 import java.util.*;
 
-/** Threshold_Median_Filter - 1.1 - Talon Chandler - Takes a 2D or 3D image or
+/** Threshold_Median_Filter - 1.2 - Talon Chandler - Takes a 2D or 3D image or
  * hyperstack and replaces pixels that have a neighborhood average less than the
  * slider threshold with the neighborhood median. The neighborhood of a pixel
  * consists of the 8 adjacent pixels in the 2D case and the 26 adjacent pixels
@@ -40,9 +40,10 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 
     public int showDialog (ImagePlus imp, String command, PlugInFilterRunner pfr) {
         GenericDialog gd = new GenericDialog(command+"...");
-        gd.addSlider("Threshold", 0.0, max(imp), 0.0);
-        gd.addPreviewCheckbox(pfr);
 
+        gd.addSlider("Threshold", 0.0, max(imp), 0.0);
+	gd.setInsets(5,0,0);	
+        gd.addPreviewCheckbox(pfr);
 	String[] names = new String[imp.getNChannels()];
 	boolean[] defaultValues = new boolean[imp.getNChannels()];
 
@@ -51,7 +52,8 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    defaultValues[i] = false;
 	}
 	defaultValues[imp.getC()-1] = true; // check current channel	
-	
+
+	gd.setInsets(0,0,0);	
 	gd.addCheckboxGroup(imp.getNChannels(), 1, names, defaultValues);
         gd.addDialogListener(this);
         gd.showDialog();           // user input (or reading from macro) happens here
@@ -109,6 +111,14 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    t_max = t_min;	    
 	}
 
+	// Find fraction of channels to filter to progress bar
+	int trueCount = 0;
+	for (int i = 0; i < imp.getNChannels(); i++) {
+	    if(checkValues[i])
+		trueCount++;
+	}
+	double channelFrac = trueCount/ (double)checkValues.length;
+	
 	int slice_index = 0;
 	for (int c=c_min; c<=c_max; c++) {
 	    if (checkValues[c-1]) { // Only filter selected channels
@@ -116,7 +126,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 		    for (int t=t_min; t<=t_max; t++) {
 
 			// Update progress bar
-			IJ.showProgress((double)slice_index/imp.getImageStackSize());
+			IJ.showProgress((double)slice_index/(channelFrac*imp.getImageStackSize()));
 			slice_index += 1;
 
 			// Find neighborhood slices
