@@ -1,14 +1,11 @@
-/** Threshold_Median_Filter - 1.3 - Talon Chandler - Takes a 2D, 3D, or
+/** Threshold_Median_Filter - 1.4 - Talon Chandler - Takes a 2D, 3D, or
 hyperstack image and replaces pixels that have a neighborhood average less than
 the slider threshold with the neighborhood median. 
 
-By default the neighborhood average for each pixel is found by averaging each
-adjacent pixel with equal weight. If the "Average weighted by PSF" box is
-checked, the average will be taken over a 7x7x7 box weighted by the PSF.
+The neighborhood average for each pixel is found by averaging each
+adjacent pixel with equal weight. 
 
-By default the center pixel is ignored during neighborhood averaging. If the
-"Average includes center pixel" box is checked, the average will include the
-center pixel.
+By default the center pixel is ignored during neighborhood averaging. 
 
 A pixel's neighborhood median is found by taking the median of each adjacent 
 pixel excluding the center pixel. 
@@ -16,6 +13,8 @@ pixel excluding the center pixel.
 
 import ij.*;
 import ij.process.*;
+import ij.measure.CurveFitter;
+import ij.plugin.frame.Fitter;
 import ij.plugin.Duplicator;
 import ij.plugin.filter.ExtendedPlugInFilter;
 import ij.plugin.filter.PlugInFilterRunner;
@@ -30,8 +29,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 
     private double threshold;
     private boolean preview;
-    private boolean psf_average;
-    private boolean center_pixel;
+    private boolean att_correct;
     private boolean[] checkValues;
     
     private ImagePlus imp;
@@ -56,9 +54,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	gd.setInsets(5,0,0);	
         gd.addPreviewCheckbox(pfr);
 	gd.setInsets(0,0,0);	
-	gd.addCheckbox("Average weighted by PSF", false);
-	gd.setInsets(0,0,0);		
-	gd.addCheckbox("Average includes center pixel", false);
+	gd.addCheckbox("Attenuation Correction", false);
 
 	// Add checkbox for each channel
 	String[] names = new String[imp.getNChannels()];
@@ -88,8 +84,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	// Store user input every time UI changes
         threshold = gd.getNextNumber();
 	preview = gd.getNextBoolean();
-	psf_average = gd.getNextBoolean();
-	center_pixel = gd.getNextBoolean();	
+	att_correct = gd.getNextBoolean();
 	checkValues = new boolean[imp.getNChannels()];
 	for(int i = 0; i < imp.getNChannels(); i++)
 	    checkValues[i] = gd.getNextBoolean();
@@ -106,6 +101,24 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	is = impOriginal.getStack();
 	isOriginal = imp.getStack();
 
+	int thresholdFrame = imp.getT();
+
+	// Fit exponential to average intensity
+	int NFrames = imp.getNFrames();
+	double[] xData = new double[NFrames];
+	double[] yData = new double[NFrames];
+
+	for (int frame=0; frame<NFrames; frame++) {
+	    xData[frame] = frame; 
+	    yData[frame] = averageFrameIntensity(imp.getC(), frame);
+	}
+	CurveFitter cf = new CurveFitter(xData, yData);
+
+	if (filterAllSlices  && att_correct) {
+	    cf.doFit(11); // Exponential fit
+	    Fitter.plot(cf);
+	}
+	
 	int c_min = 0;
 	int z_min = 0;
 	int t_min = 0;
@@ -142,11 +155,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 
 	// Find averaging kernel
 	double[][][] orig_kernel;
-	double cp = (center_pixel) ? 1.0: 0.0;
-	if (psf_average)
-	    orig_kernel = new double[][][] {{{0.0017,0.0019,0.0017,0.0016,0.0017,0.0019,0.0017},{0.0019,0.0015,0.0011,0.0009,0.0011,0.0015,0.0019},{0.0017,0.0011,0.0009,0.0011,0.0009,0.0011,0.0017},{0.0016,0.0009,0.0011,0.0015,0.0011,0.0009,0.0016},{0.0017,0.0011,0.0009,0.0011,0.0009,0.0011,0.0017},{0.0019,0.0015,0.0011,0.0009,0.0011,0.0015,0.0019},{0.0017,0.0019,0.0017,0.0016,0.0017,0.0019,0.0017}},{{0.0059,0.0076,0.0082,0.0083,0.0082,0.0076,0.0059},{0.0076,0.0084,0.0111,0.0134,0.0111,0.0084,0.0076},{0.0082,0.0111,0.022,0.0302,0.022,0.0111,0.0082},{0.0083,0.0134,0.0302,0.0421,0.0302,0.0134,0.0083},{0.0082,0.0111,0.022,0.0302,0.022,0.0111,0.0082},{0.0076,0.0084,0.0111,0.0134,0.0111,0.0084,0.0076},{0.0059,0.0076,0.0082,0.0083,0.0082,0.0076,0.0059}},{{0.0048,0.0069,0.0116,0.0153,0.0116,0.0069,0.0048},{0.0069,0.02,0.0681,0.1041,0.0681,0.02,0.0069},{0.0116,0.0681,0.2415,0.3632,0.2415,0.0681,0.0116},{0.0153,0.1041,0.3632,0.5421,0.3632,0.1041,0.0153},{0.0116,0.0681,0.2415,0.3632,0.2415,0.0681,0.0116},{0.0069,0.02,0.0681,0.1041,0.0681,0.02,0.0069},{0.0048,0.0069,0.0116,0.0153,0.0116,0.0069,0.0048}},{{0.0011,0.0023,0.0101,0.0169,0.0101,0.0023,0.0011},{0.0023,0.0261,0.1155,0.1824,0.1155,0.0261,0.0023},{0.0101,0.1155,0.4392,0.6662,0.4392,0.1155,0.0101},{0.0169,0.1824,0.6662,cp,0.6662,0.1824,0.0169},{0.0101,0.1155,0.4392,0.6662,0.4392,0.1155,0.0101},{0.0023,0.0261,0.1155,0.1824,0.1155,0.0261,0.0023},{0.0011,0.0023,0.0101,0.0169,0.0101,0.0023,0.0011}},{{0.0048,0.0069,0.0116,0.0153,0.0116,0.0069,0.0048},{0.0069,0.02,0.0681,0.1041,0.0681,0.02,0.0069},{0.0116,0.0681,0.2415,0.3632,0.2415,0.0681,0.0116},{0.0153,0.1041,0.3632,0.5421,0.3632,0.1041,0.0153},{0.0116,0.0681,0.2415,0.3632,0.2415,0.0681,0.0116},{0.0069,0.02,0.0681,0.1041,0.0681,0.02,0.0069},{0.0048,0.0069,0.0116,0.0153,0.0116,0.0069,0.0048}},{{0.0059,0.0076,0.0082,0.0083,0.0082,0.0076,0.0059},{0.0076,0.0084,0.0111,0.0134,0.0111,0.0084,0.0076},{0.0082,0.0111,0.022,0.0302,0.022,0.0111,0.0082},{0.0083,0.0134,0.0302,0.0421,0.0302,0.0134,0.0083},{0.0082,0.0111,0.022,0.0302,0.022,0.0111,0.0082},{0.0076,0.0084,0.0111,0.0134,0.0111,0.0084,0.0076},{0.0059,0.0076,0.0082,0.0083,0.0082,0.0076,0.0059}},{{0.0017,0.0019,0.0017,0.0016,0.0017,0.0019,0.0017},{0.0019,0.0015,0.0011,0.0009,0.0011,0.0015,0.0019},{0.0017,0.0011,0.0009,0.0011,0.0009,0.0011,0.0017},{0.0016,0.0009,0.0011,0.0015,0.0011,0.0009,0.0016},{0.0017,0.0011,0.0009,0.0011,0.0009,0.0011,0.0017},{0.0019,0.0015,0.0011,0.0009,0.0011,0.0015,0.0019},{0.0017,0.0019,0.0017,0.0016,0.0017,0.0019,0.0017}}};
-	else
-	    orig_kernel = new double[][][] {{{1,1,1},{1,1,1},{1,1,1}},{{1,1,1},{1,cp,1},{1,1,1}},{{1,1,1},{1,1,1},{1,1,1}}};
+	orig_kernel = new double[][][] {{{1,1,1},{1,1,1},{1,1,1}},{{1,1,1},{1,0,1},{1,1,1}},{{1,1,1},{1,1,1},{1,1,1}}};
 	
 	double[][][] kernel = normalize(orig_kernel);
 	int kernel_size = orig_kernel.length;
@@ -215,10 +224,17 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 					f_m_neighbors.add((float) old);
 				}
 
+				// Correct threshold for attenuation
+				double att_threshold;
+				if (filterAllSlices && att_correct)
+				    att_threshold = threshold*(cf.f(t)/cf.f(thresholdFrame));
+				else
+				    att_threshold = threshold;
+
 				// Main filter. If neighborhood mean is less than threshold,
 				// replace with the neighborhood median. Otherwise, leave 
 				// the pixel alone.
-				if(sum(a_neighbors) < threshold) { // The sum is actually a mean of pixels because the kernel is normalized
+				if(sum(a_neighbors) < att_threshold) { // The sum is actually a mean of pixels because the kernel is normalized
 				    int i = (int) median(f_m_neighbors);
 				    ip.putPixel(x,y,i);
 				}
@@ -262,13 +278,13 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	float pix = 0;
 	int nslices = is.getSize();
 	for (int z=1; z<=is.getSize(); z++) {
-	    ImageProcessor ip = is.getProcessor(z);	    
-	    for (int x=0; x<ip.getWidth(); x++) {
-		for (int y=0; y<ip.getHeight(); y++) {
+	    ImageProcessor ipMax = is.getProcessor(z);	    
+	    for (int x=0; x<ipMax.getWidth(); x++) {
+		for (int y=0; y<ipMax.getHeight(); y++) {
 		    if (ip instanceof FloatProcessor)
-			pix = Float.intBitsToFloat(ip.getPixel(x,y));
+			pix = Float.intBitsToFloat(ipMax.getPixel(x,y));
 		    else
-			pix = ip.getPixel(x,y);
+			pix = ipMax.getPixel(x,y);
 		    if (pix > maxPix)
 			maxPix = pix;
 		}
@@ -323,6 +339,23 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    }
 	}
 	return output;
+    }
+
+    private double averageFrameIntensity(int channel, int frame) {
+	ImageProcessor ipIntensity;
+	double sum = 0.0;
+	int count = 0;
+
+	for (int z=0; z<imp.getNSlices(); z++) {
+	    ipIntensity = is.getProcessor(imp.getStackIndex(channel, z, frame));
+	    for (int x=0; x<ipIntensity.getWidth(); x++) {
+		for (int y=0; y<ipIntensity.getHeight(); y++) {
+		    count = count + 1;
+		    sum = sum + ipIntensity.getPixel(x,y);
+		}
+	    }
+	}
+	return sum/count;
     }
 	
     public void setNPasses (int nPasses) {}
