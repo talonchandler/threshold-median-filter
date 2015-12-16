@@ -54,13 +54,13 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	gd.setInsets(5,0,0);	
         gd.addPreviewCheckbox(pfr);
 	gd.setInsets(0,0,0);	
-	gd.addCheckbox("Attenuation Correction", false);
+	gd.addCheckbox(" Attenuation Correction", false);
 
 	// Add checkbox for each channel
 	String[] names = new String[imp.getNChannels()];
 	boolean[] defaultValues = new boolean[imp.getNChannels()];
         for(int i = 0; i < imp.getNChannels(); i++) {
-	    names[i] = "Channel " + Integer.toString(i+1);
+	    names[i] = " Channel " + Integer.toString(i+1);
 	    defaultValues[i] = false;
 	}
 	defaultValues[imp.getC()-1] = true; // Check current channel by default
