@@ -25,6 +25,7 @@ import java.util.*;
 
 public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogListener {
 
+    long startTime;
     private static int FLAGS =  DOES_8G | DOES_16 | DOES_32 | KEEP_PREVIEW;           
 
     private double threshold;
@@ -55,7 +56,6 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
         gd.addPreviewCheckbox(pfr);
 	gd.setInsets(0,0,0);	
 	gd.addCheckbox(" Attenuation Correction", false);
-
 	// Add checkbox for each channel
 	checkValues = new boolean[imp.getNChannels()];	
 	String[] names = new String[imp.getNChannels()];
@@ -67,7 +67,6 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	defaultValues[imp.getC()-1] = true; // Check current channel by default
 	gd.setInsets(0,0,0);	
 	gd.addCheckboxGroup(imp.getNChannels(), 1, names, defaultValues);
-
 	// Make UI responsive
 	gd.addDialogListener(this);
         gd.showDialog();           // User input happens here
@@ -76,6 +75,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
             return DONE;
 	}
 	if (gd.wasOKed()) {
+	    startTime = System.currentTimeMillis();
 	    this.imp = thresholdMedian(imp, threshold, true);
 	}
         return FLAGS;
@@ -100,7 +100,6 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
     private ImagePlus thresholdMedian (ImagePlus imp, double threshold, Boolean filterAllSlices) {
 	is = impOriginal.getStack();
 	isOriginal = imp.getStack();
-
 	int thresholdFrame = imp.getT();
 
 	// Fit exponential to average intensity
@@ -113,7 +112,6 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    yData[frame] = averageFrameIntensity(imp.getC(), frame);
 	}
 	CurveFitter cf = new CurveFitter(xData, yData);
-
 	if (filterAllSlices  && att_correct) {
 	    cf.doFit(11); // Exponential fit
 	    Fitter.plot(cf);
@@ -144,7 +142,6 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    c_max = c_min;
 	    t_max = t_min;	    
 	}
-
 	// Find fraction of channels to filter for progress bar
 	int trueCount = 0;
 	for (int i = 0; i < imp.getNChannels(); i++) {
@@ -161,6 +158,11 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	int kernel_size = orig_kernel.length;
 	int kernel_middle_index = (int) (kernel_size-1)/2;
 
+	Integer[] m_neighbors = new Integer[26]; // Median neighbors
+	Double[] a_neighbors = new Double[27]; // Average neighbors				
+	Float[] f_m_neighbors = new Float[26];
+	ipOriginal = new ImageProcessor[kernel_size];
+
 	// For each channel, slice, and time
 	int slice_index = 0;
 	for (int c=c_min; c<=c_max; c++) {
@@ -173,34 +175,35 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 			slice_index += 1;
 
 			// Find neighborhood slices
-			ipOriginal = new ImageProcessor[kernel_size];
 			int z_dim = imp.getNSlices();
 			for (int kernel_z=0; kernel_z<kernel_size; kernel_z++) {
 			    int z_index = reflectedIndex(kernel_z, kernel_size, z, z_dim);
 			    ipOriginal[kernel_z] = is.getProcessor(imp.getStackIndex(c, z_index, t));
 			}
-
 			// Go through each pixel in the 2D image
 			ip = isOriginal.getProcessor(imp.getStackIndex(c, z, t));
 			int xdim = ip.getWidth();
 			int ydim = ip.getHeight();
 			for (int x=0; x<xdim; x++) {
 			    for (int y=0; y<ydim; y++) {
-				ArrayList<Integer> m_neighbors = new ArrayList<Integer>(); // Median neighbors
-				ArrayList<Double> a_neighbors = new ArrayList<Double>(); // Average neighbors				
-
+				// Previous arraylist alloc here
+				//m_neighbors.clear();
+				//a_neighbors.clear();
 				// Find kernel weighted neighborhood pixels
+				int ind = 0;
 				for (int kernel_x=0; kernel_x<kernel_size; kernel_x++) {
 				    for (int kernel_y=0; kernel_y<kernel_size; kernel_y++) {
 					for (int kernel_z=0; kernel_z<kernel_size; kernel_z++) {
 					    int x_index = reflectedIndex(kernel_x, kernel_size, x, xdim);
 					    int y_index = reflectedIndex(kernel_y, kernel_size, y, ydim);
-					    a_neighbors.add(kernel[kernel_z][kernel_x][kernel_y]*ipOriginal[kernel_z].getPixel(x_index, y_index));
+					    a_neighbors[ind] = kernel[kernel_z][kernel_x][kernel_y]*ipOriginal[kernel_z].getPixel(x_index, y_index);
+					    ind = ind + 1;
 					}
 				    }
 				}
 
 				// Find median neighborhood pixels
+				int ind2 = 0;
 				int median_size = 3;
 				int median_middle_index = (int) (median_size-1)/2;
 				for (int kernel_x=0; kernel_x<median_size; kernel_x++) {
@@ -208,20 +211,21 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 					for (int kernel_z=0; kernel_z<median_size; kernel_z++) {
 					    int x_index = reflectedIndex(kernel_x, median_size, x, xdim);
 					    int y_index = reflectedIndex(kernel_y, median_size, y, ydim);
-					    if (!(x_index == x && y_index == y && kernel_z == (int) median_middle_index)) // Exclude center pixel
-						m_neighbors.add(ipOriginal[((kernel_size - median_size)/2) + kernel_z].getPixel(x_index, y_index));
+					    if (!(x_index == x && y_index == y && kernel_z == (int) median_middle_index)) { // Exclude center pixel
+						m_neighbors[ind2] = ipOriginal[((kernel_size - median_size)/2) + kernel_z].getPixel(x_index, y_index);
+					        ind2 = ind2 + 1;
+					    }
 					}
 				    }
 				}
 
 				// Convert median neighbors to floats
-				ArrayList<Float> f_m_neighbors = new ArrayList<Float>();
-				for(int i = 0; i < m_neighbors.size(); i++) {
-				    int old = m_neighbors.get(i);
+				for(int i = 0; i < m_neighbors.length; i++) {
+				    int old = m_neighbors[i];
 				    if (ipOriginal[1] instanceof FloatProcessor)
-					f_m_neighbors.add(Float.intBitsToFloat(old));
+					f_m_neighbors[i] = Float.intBitsToFloat(old);
 				    else
-					f_m_neighbors.add((float) old);
+					f_m_neighbors[i] = (float) old;
 				}
 
 				// Correct threshold for attenuation
@@ -252,25 +256,24 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
     // Helper functions
     
     // Returns the sum of an ArrayList    
-    private double sum(ArrayList<Double> array){
-
+    private double sum(Double[] array){
 	double sum = 0;
-	for(int i = 0; i < array.size(); i++) {
-	    sum += array.get(i);
+	for(int i = 0; i < array.length; i++) {
+	    sum += array[i];
 	}
 	return sum;
     }
 
     // Returns the median of an ArrayList
-    private float median(ArrayList<Float> array){
-	Collections.sort(array);
-	int len = array.size();
+    private float median(Float[] array){
+	Arrays.sort(array);
+	int len = array.length;
 	if(len%2==0)
-	    return((array.get((len/2)-1)+array.get(len/2))/2);
+	    return((array[(len/2)-1]+array[len/2])/2);
 	else
-	    return array.get(((len-1)/2));
+	    return array[((len-1)/2)];
     }
-
+    
     // Returns the maximum pixel value in an image stack. 
     private float max(ImagePlus imp) {
 	ImageStack is = imp.getStack();
