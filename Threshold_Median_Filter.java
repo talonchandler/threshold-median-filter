@@ -1,4 +1,4 @@
-/** Threshold_Median_Filter - 1.4 - Talon Chandler - Takes a 2D, 3D, or
+/** Threshold_Median_Filter - 1.5 - Talon Chandler - Takes a 2D, 3D, or
 hyperstack image and replaces pixels that have a neighborhood average less than
 the slider threshold with the neighborhood median. 
 
