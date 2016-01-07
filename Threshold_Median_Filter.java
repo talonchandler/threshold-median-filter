@@ -1,4 +1,4 @@
-/** Threshold_Median_Filter - 1.5 - Talon Chandler - Takes a 2D, 3D, or
+/** Threshold_Median_Filter - 1.6 - Talon Chandler - Takes a 2D, 3D, or
 hyperstack image and replaces pixels that have a neighborhood average less than
 the slider threshold with the neighborhood median. 
 
@@ -20,6 +20,7 @@ import ij.plugin.filter.ExtendedPlugInFilter;
 import ij.plugin.filter.PlugInFilterRunner;
 import ij.gui.DialogListener;
 import ij.gui.GenericDialog;
+import ij.gui.ImageWindow;
 import java.awt.*;
 import java.util.*;
 
@@ -30,15 +31,18 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 
     private double threshold;
     private boolean preview;
+    private boolean preview_z_avg;    
     private boolean att_correct;
     private boolean[] checkValues;
     
     private ImagePlus imp;
     private ImagePlus impOriginal;
+    private ImagePlus impzOriginal;
     private ImageStack is;
     private ImageStack isOriginal;
     private ImageProcessor ip;
     private ImageProcessor[] ipOriginal;
+    private ImageWindow win_z;
     
     public int setup (String arg, ImagePlus imp) {
 	try{impOriginal = new Duplicator().run(imp);}
@@ -54,6 +58,8 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
         gd.addSlider("Threshold", 0.0, max(imp), 0.0);
 	gd.setInsets(5,0,0);	
         gd.addPreviewCheckbox(pfr);
+	gd.setInsets(0,0,0);
+	gd.addCheckbox(" Preview Z-Average", true);
 	gd.setInsets(0,0,0);	
 	gd.addCheckbox(" Attenuation Correction", false);
 	// Add checkbox for each channel
@@ -71,12 +77,11 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	gd.addDialogListener(this);
         gd.showDialog();           // User input happens here
         if (gd.wasCanceled()) {    // Dialog cancelled?
-	    this.imp = thresholdMedian(imp, 0, false); // Reset image
+	    this.imp = thresholdMedian(imp, impOriginal, 0, false); // Reset image
             return DONE;
 	}
 	if (gd.wasOKed()) {
-	    startTime = System.currentTimeMillis();
-	    this.imp = thresholdMedian(imp, threshold, true);
+	    this.imp = thresholdMedian(imp, impOriginal, threshold, true);
 	}
         return FLAGS;
     }
@@ -85,6 +90,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	// Store user input every time UI changes
         threshold = gd.getNextNumber();
 	preview = gd.getNextBoolean();
+	preview_z_avg = gd.getNextBoolean();	
 	att_correct = gd.getNextBoolean();
 	for(int i = 0; i < imp.getNChannels(); i++)
 	    checkValues[i] = gd.getNextBoolean();
@@ -94,22 +100,42 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
     
     public void run (ImageProcessor ip) {
 	// Main function
-	imp = thresholdMedian(imp, threshold, false);
+	imp = thresholdMedian(imp, impOriginal, threshold, false);	
+	if(preview_z_avg) {
+	    imp.unlock();
+
+	    String[] names = WindowManager.getImageTitles();
+	    for(int i=0; i<names.length; i++) {
+		if(names[i].substring(0,3).equals("AVG")) {
+		    IJ.selectWindow(names[i]);
+		    IJ.run("Close");
+		}
+	    }
+
+	    IJ.run(imp, "Z Project...", "projection=[Average Intensity]");
+	    IJ.run("In [+]", "");
+	    IJ.run("In [+]", "");
+	    
+	    ImagePlus imp_z = WindowManager.getCurrentImage();
+	    impzOriginal = new Duplicator().run(imp_z);
+	    imp_z = thresholdMedian(imp_z, impzOriginal, threshold, false);
+	    IJ.run(imp_z, "Enhance Contrast", "saturated=0");
+	}
     }
 
-    private ImagePlus thresholdMedian (ImagePlus imp, double threshold, Boolean filterAllSlices) {
-	is = impOriginal.getStack();
-	isOriginal = imp.getStack();
-	int thresholdFrame = imp.getT();
+    private ImagePlus thresholdMedian (ImagePlus imp_loc, ImagePlus impOriginal_loc, double threshold, Boolean filterAllSlices) {
+	is = impOriginal_loc.getStack();
+	isOriginal = imp_loc.getStack();
+	int thresholdFrame = imp_loc.getT();
 
 	// Fit exponential to average intensity
-	int NFrames = imp.getNFrames();
+	int NFrames = imp_loc.getNFrames();
 	double[] xData = new double[NFrames];
 	double[] yData = new double[NFrames];
 
 	for (int frame=0; frame<NFrames; frame++) {
 	    xData[frame] = frame; 
-	    yData[frame] = averageFrameIntensity(imp.getC(), frame);
+	    yData[frame] = averageFrameIntensity(imp_loc.getC(), frame, is, impOriginal_loc);
 	}
 	CurveFitter cf = new CurveFitter(xData, yData);
 	if (filterAllSlices  && att_correct) {
@@ -129,22 +155,22 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	    c_min = 1;
 	    z_min = 1;
 	    t_min = 1;		    
-	    c_max = imp.getNChannels();
-	    z_max = imp.getNSlices();
-	    t_max = imp.getNFrames();
+	    c_max = imp_loc.getNChannels();
+	    z_max = imp_loc.getNSlices();
+	    t_max = imp_loc.getNFrames();
 	}
 	// Only filter the current slice (preview mode)
 	else { 
-	    z_min = imp.getZ();
-	    c_min = imp.getC();
-	    t_min = imp.getT();
+	    z_min = imp_loc.getZ();
+	    c_min = imp_loc.getC();
+	    t_min = imp_loc.getT();
 	    z_max = z_min;
 	    c_max = c_min;
 	    t_max = t_min;	    
 	}
 	// Find fraction of channels to filter for progress bar
 	int trueCount = 0;
-	for (int i = 0; i < imp.getNChannels(); i++) {
+	for (int i = 0; i < imp_loc.getNChannels(); i++) {
 	    if(checkValues[i])
 		trueCount++;
 	}
@@ -171,17 +197,17 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 		    for (int t=t_min; t<=t_max; t++) {
 
 			// Update progress bar
-			IJ.showProgress((double)slice_index/(channelFrac*imp.getImageStackSize()));
+			IJ.showProgress((double)slice_index/(channelFrac*imp_loc.getImageStackSize()));
 			slice_index += 1;
 
 			// Find neighborhood slices
-			int z_dim = imp.getNSlices();
+			int z_dim = imp_loc.getNSlices();
 			for (int kernel_z=0; kernel_z<kernel_size; kernel_z++) {
 			    int z_index = reflectedIndex(kernel_z, kernel_size, z, z_dim);
-			    ipOriginal[kernel_z] = is.getProcessor(imp.getStackIndex(c, z_index, t));
+			    ipOriginal[kernel_z] = is.getProcessor(imp_loc.getStackIndex(c, z_index, t));
 			}
 			// Go through each pixel in the 2D image
-			ip = isOriginal.getProcessor(imp.getStackIndex(c, z, t));
+			ip = isOriginal.getProcessor(imp_loc.getStackIndex(c, z, t));
 			int xdim = ip.getWidth();
 			int ydim = ip.getHeight();
 			for (int x=0; x<xdim; x++) {
@@ -250,7 +276,7 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 		}
 	    }
 	}
-	return imp;
+	return imp_loc;
     }
 
     // Helper functions
@@ -344,13 +370,13 @@ public class Threshold_Median_Filter implements ExtendedPlugInFilter, DialogList
 	return output;
     }
 
-    private double averageFrameIntensity(int channel, int frame) {
+    private double averageFrameIntensity(int channel, int frame, ImageStack is_loc, ImagePlus imp_loc) {
 	ImageProcessor ipIntensity;
 	double sum = 0.0;
 	int count = 0;
 
-	for (int z=0; z<imp.getNSlices(); z++) {
-	    ipIntensity = is.getProcessor(imp.getStackIndex(channel, z, frame));
+	for (int z=0; z<imp_loc.getNSlices(); z++) {
+	    ipIntensity = is_loc.getProcessor(imp_loc.getStackIndex(channel, z, frame));
 	    for (int x=0; x<ipIntensity.getWidth(); x++) {
 		for (int y=0; y<ipIntensity.getHeight(); y++) {
 		    count = count + 1;
